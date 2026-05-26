@@ -1,6 +1,5 @@
 // Shared TypeScript types. These mirror the database tables in
-// supabase/migrations/0001_initial_schema.sql. If you change the
-// schema, change these too.
+// supabase/migrations/. If you change the schema, change these too.
 
 export type Zone =
   | 'library'
@@ -45,6 +44,7 @@ export interface GameCard {
   scryfall_id: string | null;
   name: string;
   image_url: string | null;
+  oracle_text: string | null;
   is_token: boolean;
   tapped: boolean;
   created_at: string;

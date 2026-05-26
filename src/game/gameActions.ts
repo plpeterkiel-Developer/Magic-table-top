@@ -9,15 +9,69 @@
 import { supabase } from '../lib/supabase';
 import type { GameCard, Zone } from '../lib/types';
 import { getTestDeck } from '../lib/testDecks';
+import { loadDeckWithCards } from '../decks/deckActions';
 
 // ---------------------------------------------------------------------
 // Deck initialisation (called when a player takes a seat)
 // ---------------------------------------------------------------------
-// Builds rows in game_cards for the player's chosen deck:
-//   - commander -> command zone
-//   - the rest, shuffled, into the library
+// Both variants build rows in game_cards for the player's deck:
+//   - commander -> command zone (one copy)
+//   - the rest, fanned out by quantity, shuffled, into the library
 // The DB trigger updates hand_count / library_count automatically.
-export async function initialiseSeatCards({
+
+// Fisher–Yates in place.
+function shuffleInPlace<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+  }
+}
+
+// Shape of one card we're about to write to game_cards.
+type PendingCard = {
+  name: string;
+  scryfall_id: string | null;
+  image_url: string | null;
+  oracle_text: string | null;
+  is_token: boolean;
+};
+
+async function insertSeatCards(
+  gameId: string,
+  userId: string,
+  commander: PendingCard | null,
+  library: PendingCard[]
+): Promise<void> {
+  if (!commander && library.length === 0) {
+    throw new Error('This deck has no cards.');
+  }
+
+  const rows: Record<string, unknown>[] = [];
+  if (commander) {
+    rows.push({
+      game_id: gameId,
+      owner_user_id: userId,
+      zone: 'command' as Zone,
+      position: 0,
+      ...commander,
+    });
+  }
+  library.forEach((c, idx) => {
+    rows.push({
+      game_id: gameId,
+      owner_user_id: userId,
+      zone: 'library' as Zone,
+      position: idx,
+      ...c,
+    });
+  });
+
+  const { error } = await supabase.from('game_cards').insert(rows);
+  if (error) throw error;
+}
+
+// Real deck from the decks/deck_cards tables (Phase 2 production path).
+export async function initialiseSeatCardsFromDeck({
   gameId,
   userId,
   deckId,
@@ -26,39 +80,65 @@ export async function initialiseSeatCards({
   userId: string;
   deckId: string;
 }): Promise<void> {
-  const deck = getTestDeck(deckId);
-  if (!deck) throw new Error(`Unknown test deck: ${deckId}`);
+  const { deck, cards } = await loadDeckWithCards(deckId);
+  const commanderRowId = deck.commander_card_id;
 
-  // Shuffle a copy of the library (Fisher–Yates).
-  const library = [...deck.cards];
-  for (let i = library.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [library[i], library[j]] = [library[j]!, library[i]!];
+  let commander: PendingCard | null = null;
+  const library: PendingCard[] = [];
+
+  for (const c of cards) {
+    const base: PendingCard = {
+      name: c.name,
+      scryfall_id: c.scryfall_id,
+      image_url: c.image_url,
+      oracle_text: c.oracle_text,
+      is_token: false,
+    };
+    if (c.id === commanderRowId) {
+      commander = base;
+      // Extra copies of the commander row (rare, but legal in our schema)
+      // go to the library — only one card ever sits in the command zone.
+      for (let i = 1; i < c.quantity; i++) library.push(base);
+    } else {
+      for (let i = 0; i < c.quantity; i++) library.push(base);
+    }
   }
 
-  const rows = [
-    {
-      game_id: gameId,
-      owner_user_id: userId,
-      zone: 'command' as Zone,
-      position: 0,
-      name: deck.commander.name,
-      image_url: null,
-      is_token: false,
-    },
-    ...library.map((card, idx) => ({
-      game_id: gameId,
-      owner_user_id: userId,
-      zone: 'library' as Zone,
-      position: idx,
-      name: card.name,
-      image_url: null,
-      is_token: false,
-    })),
-  ];
+  shuffleInPlace(library);
+  await insertSeatCards(gameId, userId, commander, library);
+}
 
-  const { error } = await supabase.from('game_cards').insert(rows);
-  if (error) throw error;
+// Hardcoded test deck (DEV/Playwright fallback). Kept so we don't have
+// to depend on Scryfall in the Phase 1 e2e tests.
+export async function initialiseSeatCardsFromTestDeck({
+  gameId,
+  userId,
+  testDeckId,
+}: {
+  gameId: string;
+  userId: string;
+  testDeckId: string;
+}): Promise<void> {
+  const deck = getTestDeck(testDeckId);
+  if (!deck) throw new Error(`Unknown test deck: ${testDeckId}`);
+
+  const commander: PendingCard = {
+    name: deck.commander.name,
+    scryfall_id: null,
+    image_url: null,
+    oracle_text: null,
+    is_token: false,
+  };
+  const library: PendingCard[] = deck.cards.map((c) => ({
+    name: c.name,
+    scryfall_id: null,
+    image_url: null,
+    oracle_text: null,
+    is_token: false,
+  }));
+
+  shuffleInPlace(library);
+  await insertSeatCards(gameId, userId, commander, library);
 }
 
 // ---------------------------------------------------------------------

@@ -84,13 +84,17 @@ export function PlayerBoard({ player, cards, isOwner }: PlayerBoardProps) {
       </header>
 
       <div className="zones">
-        <Zone label="Command" count={command.length}>
+        <Zone label="Command" count={command.length} kind="narrow">
           {command.map((c) => (
             <Card key={c.id} card={c} isOwner={isOwner} />
           ))}
         </Zone>
 
-        <Zone label={`Library (${player.library_count})`} count={player.library_count}>
+        <Zone
+          label="Library"
+          count={player.library_count}
+          kind="narrow"
+        >
           {/* Library always shows a single face-down stack regardless of viewer. */}
           {player.library_count > 0 && (
             <div className="card face-down stack-of-many" aria-label="Library">
@@ -106,7 +110,7 @@ export function PlayerBoard({ player, cards, isOwner }: PlayerBoardProps) {
           )}
         </Zone>
 
-        <Zone label="Battlefield" count={battlefield.length}>
+        <Zone label="Battlefield" count={battlefield.length} kind="widest">
           {battlefield.map((c) => (
             <Card key={c.id} card={c} isOwner={isOwner} />
           ))}
@@ -135,19 +139,23 @@ export function PlayerBoard({ player, cards, isOwner }: PlayerBoardProps) {
           )}
         </Zone>
 
-        <Zone label="Graveyard" count={graveyard.length}>
+        <Zone label="Graveyard" count={graveyard.length} kind="narrow">
           {graveyard.map((c) => (
             <Card key={c.id} card={c} isOwner={isOwner} />
           ))}
         </Zone>
 
-        <Zone label="Exile" count={exile.length}>
+        <Zone label="Exile" count={exile.length} kind="narrow">
           {exile.map((c) => (
             <Card key={c.id} card={c} isOwner={isOwner} />
           ))}
         </Zone>
 
-        <Zone label={`Hand (${player.hand_count})`} count={player.hand_count}>
+        <Zone
+          label="Hand"
+          count={player.hand_count}
+          kind="wide"
+        >
           {/* Owner sees their actual hand. Opponents see only face-down placeholders. */}
           {isOwner
             ? hand.map((c) => <Card key={c.id} card={c} isOwner={true} />)
@@ -162,17 +170,21 @@ export function PlayerBoard({ player, cards, isOwner }: PlayerBoardProps) {
   );
 }
 
+type ZoneKind = 'narrow' | 'wide' | 'widest';
+
 function Zone({
   label,
   count,
+  kind = 'narrow',
   children,
 }: {
   label: string;
   count: number;
+  kind?: ZoneKind;
   children: React.ReactNode;
 }) {
   return (
-    <div className="zone">
+    <div className={`zone zone--${kind}`}>
       <div className="zone-label">
         {label}
         {count > 0 && <span className="zone-count">{count}</span>}
