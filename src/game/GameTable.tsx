@@ -1,9 +1,10 @@
 // The whole shared table. Renders one PlayerBoard per seated player.
 //
-// Phase 3 will make this responsive (desktop = all boards, mobile = one
-// player at a time with tabs). For Phase 1 we just stack them vertically
-// with the viewer's own board at the top — readable on any screen.
-import { useEffect } from 'react';
+// Desktop: all boards visible, stacked vertically with the viewer's own
+// board at the top.
+// Mobile (≤720px, via CSS): only the board matching the selected player
+// tab is visible. The tabs row above .boards drives selection.
+import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { useGameState } from './useGameState';
 import { PlayerBoard } from './PlayerBoard';
@@ -16,6 +17,7 @@ interface GameTableProps {
 export function GameTable({ gameId, onLeave }: GameTableProps) {
   const { user } = useAuth();
   const { state, error, loading } = useGameState(gameId);
+  const [selectedSeat, setSelectedSeat] = useState(0);
 
   // Friendly tab title — handy when you have multiple browser windows
   // open for testing 2-player sync.
@@ -48,6 +50,9 @@ export function GameTable({ gameId, onLeave }: GameTableProps) {
     ...state.players.filter((p) => p.user_id !== viewerId),
   ];
 
+  // Clamp selectedSeat to the current player list (in case someone left).
+  const safeSeat = Math.min(selectedSeat, Math.max(0, orderedPlayers.length - 1));
+
   return (
     <div className="game">
       <header className="topbar">
@@ -66,13 +71,31 @@ export function GameTable({ gameId, onLeave }: GameTableProps) {
 
       {error && <div className="error">{error}</div>}
 
+      {/* Mobile-only player tabs — hidden on desktop via CSS. */}
+      {orderedPlayers.length > 0 && (
+        <nav className="player-tabs" aria-label="Switch player">
+          {orderedPlayers.map((p, i) => (
+            <button
+              key={p.id}
+              type="button"
+              className={`player-tab ${i === safeSeat ? 'active' : ''}`}
+              onClick={() => setSelectedSeat(i)}
+            >
+              {p.display_name}
+              {p.user_id === viewerId && ' (you)'}
+            </button>
+          ))}
+        </nav>
+      )}
+
       <main className="boards">
-        {orderedPlayers.map((p) => (
+        {orderedPlayers.map((p, i) => (
           <PlayerBoard
             key={p.id}
             player={p}
             cards={state.cards}
             isOwner={p.user_id === viewerId}
+            dataActive={i === safeSeat}
           />
         ))}
         {state.players.length < 2 && (

@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { GameCard, Zone } from '../lib/types';
 import { ALL_ZONES } from '../lib/types';
 import { moveCard, setTapped, deleteToken } from './gameActions';
-import { fetchOracleText, getCachedOracleText } from '../lib/oracleCache';
+import { fetchOracleText, getCachedOracleText } from '../lib/cardCache';
 
 interface CardProps {
   card: GameCard;

@@ -44,6 +44,7 @@ export interface GameCard {
   scryfall_id: string | null;
   name: string;
   image_url: string | null;
+  type_line: string | null;
   oracle_text: string | null;
   is_token: boolean;
   tapped: boolean;

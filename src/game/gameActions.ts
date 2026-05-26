@@ -32,6 +32,7 @@ type PendingCard = {
   name: string;
   scryfall_id: string | null;
   image_url: string | null;
+  type_line: string | null;
   oracle_text: string | null;
   is_token: boolean;
 };
@@ -91,6 +92,7 @@ export async function initialiseSeatCardsFromDeck({
       name: c.name,
       scryfall_id: c.scryfall_id,
       image_url: c.image_url,
+      type_line: c.type_line,
       oracle_text: c.oracle_text,
       is_token: false,
     };
@@ -126,6 +128,7 @@ export async function initialiseSeatCardsFromTestDeck({
     name: deck.commander.name,
     scryfall_id: null,
     image_url: null,
+    type_line: null,
     oracle_text: null,
     is_token: false,
   };
@@ -133,6 +136,7 @@ export async function initialiseSeatCardsFromTestDeck({
     name: c.name,
     scryfall_id: null,
     image_url: null,
+    type_line: null,
     oracle_text: null,
     is_token: false,
   }));
@@ -291,14 +295,27 @@ export async function adjustLife(
 // ---------------------------------------------------------------------
 // Tokens
 // ---------------------------------------------------------------------
+// Tokens get a synthetic type_line so the battlefield's bucketing
+// function can place them in the right sub-row alongside real cards.
+export type TokenCategory = 'creature' | 'artifact' | 'enchantment' | 'land';
+
+const TOKEN_TYPE_PREFIX: Record<TokenCategory, string> = {
+  creature: 'Token Creature',
+  artifact: 'Token Artifact',
+  enchantment: 'Token Enchantment',
+  land: 'Token Land',
+};
+
 export async function createToken({
   gameId,
   userId,
   name,
+  category = 'creature',
 }: {
   gameId: string;
   userId: string;
   name: string;
+  category?: TokenCategory;
 }): Promise<void> {
   // Place on battlefield at end-of-row.
   const { data: last } = await supabase
@@ -312,14 +329,21 @@ export async function createToken({
     .maybeSingle();
   const position = last ? last.position + 1 : 0;
 
+  const trimmed = name.trim();
+  const finalName = trimmed || 'Token';
+  const typeLine = trimmed
+    ? `${TOKEN_TYPE_PREFIX[category]} — ${trimmed}`
+    : TOKEN_TYPE_PREFIX[category];
+
   const { error } = await supabase.from('game_cards').insert({
     game_id: gameId,
     owner_user_id: userId,
     zone: 'battlefield',
     position,
-    name: name || 'Token',
+    name: finalName,
     is_token: true,
     image_url: null,
+    type_line: typeLine,
   });
   if (error) throw error;
 }
