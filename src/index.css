@@ -6,8 +6,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   background: #1a1a2e;
   color: #e7e7ee;
-  font-size: 15px;
-  line-height: 1.4;
+  font-size: 16px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 button {
@@ -27,7 +27,7 @@ input, select {
 input:focus, select:focus { outline: 2px solid #7e87e0; border-color: #7e87e0; }
 
 /* Utility */
-.muted { color: #8d8da6; font-size: 0.9em; }
+.muted { color: #a8a8c4; font-size: 0.9em; }
 .centered {
   min-height: 100%;
   display: grid;
@@ -67,7 +67,7 @@ button.ghost {
   background: transparent;
   color: #b6b6d2;
   border: 1px solid #3a3a52;
-  padding: 6px 10px;
+  padding: 8px 14px;
   border-radius: 6px;
 }
 button.ghost:hover { background: #232342; color: #fff; }
@@ -108,12 +108,12 @@ button.danger {
   display: flex;
   gap: 12px;
   align-items: center;
-  padding: 10px 16px;
+  padding: 14px 20px;
   background: #15152a;
   border-bottom: 1px solid #2a2a48;
   flex-wrap: wrap;
 }
-.topbar strong { font-size: 1.1em; }
+.topbar strong { font-size: 1.25em; }
 .topbar > :last-child { margin-left: auto; }
 .room-code {
   background: #2a2a48;
@@ -126,22 +126,22 @@ button.danger {
 /* Lobby */
 .lobby-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-  padding: 16px;
-  max-width: 900px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  padding: 20px;
+  max-width: 1120px;
   margin: 0 auto;
 }
 .lobby-grid .card {
   background: #21213a;
   border: 1px solid #2a2a48;
-  padding: 20px;
+  padding: 24px;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
-.lobby-grid .card h2 { margin: 0; font-size: 1.15em; }
+.lobby-grid .card h2 { margin: 0 0 4px; font-size: 1.3em; }
 .lobby-grid .full { grid-column: 1 / -1; }
 
 /* Game */
@@ -206,9 +206,10 @@ button.danger {
 
 /* Zones */
 .zones {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  align-items: stretch;
 }
 .zone {
   background: #1a1a30;
@@ -219,6 +220,12 @@ button.danger {
   display: flex;
   flex-direction: column;
 }
+/* Per-zone width modifiers. Command/Library/Graveyard/Exile only ever
+   show one card (or a stack visual) so they don't need full columns;
+   Hand wants room for many; Battlefield should dominate the row. */
+.zone--narrow { flex: 0 0 auto; width: 110px; }
+.zone--wide   { flex: 1 1 260px; min-width: 260px; }
+.zone--widest { flex: 2 1 360px; min-width: 320px; }
 .zone-label {
   display: flex;
   justify-content: space-between;
@@ -280,7 +287,7 @@ button.danger {
   transition: transform 0.15s, box-shadow 0.15s;
   box-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
-.card:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.45); transform: translateY(-1px); }
+.card:hover, .card.previewing { box-shadow: 0 2px 6px rgba(0,0,0,0.45); transform: translateY(-1px); z-index: 50; }
 .card.tapped { transform: rotate(90deg); margin: 16px 22px 16px 0; }
 .card.opponent { cursor: default; }
 .card.token { outline: 1px dashed #b6b6d2; }
@@ -362,7 +369,315 @@ button.danger {
 
 /* Mobile tweaks (Phase 3 will refine further) */
 @media (max-width: 720px) {
-  .zones { grid-template-columns: 1fr 1fr; }
+  .zone--narrow { width: 96px; }
+  .zone--wide   { flex-basis: 100%; min-width: 0; }
+  .zone--widest { flex-basis: 100%; min-width: 0; }
   .card { width: 64px; height: 90px; }
   .topbar { font-size: 0.9em; }
 }
+
+/* =====================================================================
+   Phase 2 — Decks (DeckList + DeckBuilder + CardSearch)
+   ===================================================================== */
+
+/* IMPORTANT: the `.card` class is used both for Magic cards on the
+   table (fixed 78x110, clickable) AND as a general "section container"
+   in lobby/decks views. The Magic-card rule lower in the file would
+   crush these containers to 78px wide. Reset the troublesome
+   properties for any .card that's a direct child of these layouts. */
+.lobby-grid > .card,
+.decks-main > .card,
+.deck-builder-grid > .card {
+  width: auto;
+  height: auto;
+  cursor: default;
+  user-select: auto;
+  box-shadow: none;
+  transition: none;
+}
+.lobby-grid > .card:hover,
+.decks-main > .card:hover,
+.deck-builder-grid > .card:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Link-style buttons used in deck rows + lobby empty-state */
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #94a4ff;
+  text-decoration: underline;
+  font: inherit;
+  cursor: pointer;
+}
+button.link:hover { color: #b6c2ff; }
+button.danger-link { color: #ffb4be; }
+button.danger-link:hover { color: #ffd0d7; }
+
+/* Decks page (DeckList) */
+.decks-page { min-height: 100%; display: flex; flex-direction: column; }
+.decks-main {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  padding: 20px;
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
+}
+.decks-main .card {
+  background: #21213a;
+  border: 1px solid #2a2a48;
+  padding: 24px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.decks-main .card h2 { margin: 0 0 4px; font-size: 1.3em; }
+.decks-main .full { grid-column: 1 / -1; }
+.deck-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.deck-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #1a1a30;
+  border: 1px solid #262640;
+  border-radius: 6px;
+  font-size: 1.05em;
+}
+.deck-list li > button.link { flex: 1; text-align: left; }
+
+/* Deck builder */
+.deck-builder { min-height: 100%; display: flex; flex-direction: column; }
+.deck-builder .deck-title {
+  cursor: pointer;
+  border-bottom: 1px dashed transparent;
+}
+.deck-builder .deck-title:hover { border-bottom-color: #5560d4; }
+.deck-builder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 20px;
+  padding: 20px;
+  max-width: 1240px;
+  margin: 0 auto;
+  width: 100%;
+}
+.deck-builder-grid .card {
+  background: #21213a;
+  border: 1px solid #2a2a48;
+  padding: 24px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.deck-builder-grid .card h2 { margin: 0 0 4px; font-size: 1.3em; }
+.deck-builder-grid .full { grid-column: 1 / -1; }
+.deck-builder textarea {
+  font: inherit;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid #3a3a52;
+  background: #21213a;
+  color: inherit;
+  width: 100%;
+  resize: vertical;
+  min-height: 160px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.95em;
+  line-height: 1.5;
+}
+.basics-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.paste-example {
+  margin: 0;
+  padding: 12px 14px;
+  background: #15152a;
+  border: 1px solid #2a2a48;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+  line-height: 1.55;
+  color: #b6b6d2;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* Card-search autocomplete */
+.card-search { position: relative; }
+.card-search-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 4px 0 0;
+  padding: 6px 0;
+  list-style: none;
+  background: #15152a;
+  border: 1px solid #3a3a62;
+  border-radius: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+}
+.card-search-suggestions li {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 1em;
+}
+.card-search-suggestions li:hover,
+.card-search-suggestions li.active { background: #2a2a48; }
+
+/* Deck-card list (cards in deck) */
+.deck-card-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+.deck-card-list li {
+  display: grid;
+  grid-template-columns: 64px 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  background: #1a1a30;
+  border: 1px solid #262640;
+  border-radius: 8px;
+}
+.deck-card-list li.is-commander {
+  border-color: #5560d4;
+  box-shadow: 0 0 0 1px #5560d433;
+}
+.deck-card-thumb {
+  width: 64px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 5px;
+  background: #2a2a48;
+}
+.deck-card-thumb-placeholder { background: #2a2a48; }
+.deck-card-meta { min-width: 0; }
+.deck-card-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  font-size: 1.05em;
+  min-width: 0;
+}
+.deck-card-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.mana-cost {
+  font-size: 0.8em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #2a2a48;
+  color: #d4d4ee;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.badge {
+  font-size: 0.65em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #5560d4;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.deck-card-qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05em;
+}
+.deck-card-qty span { min-width: 28px; text-align: center; }
+.deck-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+@media (max-width: 720px) {
+  .deck-card-list li {
+    grid-template-columns: 56px 1fr;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "thumb meta"
+      "qty   actions";
+    gap: 10px;
+  }
+  .deck-card-thumb { grid-area: thumb; width: 56px; height: 78px; }
+  .deck-card-meta { grid-area: meta; }
+  .deck-card-qty { grid-area: qty; }
+  .deck-card-actions { grid-area: actions; justify-content: flex-end; }
+}
+
+/* Real card art on the game table */
+.card .card-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.card.has-art { background: #0e0e1c; }
+
+/* Oracle-text overlay (hover on desktop, long-press on mobile).
+   Position is set by Card.tsx via inline left/top so it stays inside
+   the viewport regardless of where the card is on the table. */
+.card-oracle-overlay {
+  position: fixed;
+  z-index: 60;
+  width: 280px;
+  max-width: calc(100vw - 16px);
+  background: #15152a;
+  border: 1px solid #3a3a62;
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #e7e7ee;
+  font-size: 0.85em;
+  line-height: 1.45;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  pointer-events: none;
+}
+.card-oracle-overlay-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.card-oracle-overlay-type {
+  color: #a8a8c4;
+  font-size: 0.95em;
+  margin-bottom: 6px;
+}
+.card-oracle-overlay-body { white-space: pre-wrap; }
+.card-oracle-overlay-loading { color: #a8a8c4; font-style: italic; }
+
