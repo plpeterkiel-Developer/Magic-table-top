@@ -225,7 +225,71 @@ button.danger {
    Hand wants room for many; Battlefield should dominate the row. */
 .zone--narrow { flex: 0 0 auto; width: 110px; }
 .zone--wide   { flex: 1 1 260px; min-width: 260px; }
-.zone--widest { flex: 2 1 360px; min-width: 320px; }
+.zone--widest { flex: 3 1 420px; min-width: 360px; }
+
+/* Battlefield is subdivided into three top-to-bottom rows
+   (creatures+planeswalkers, artifacts+enchantments, lands). */
+.battlefield-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.battlefield-row {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed #2a2a48;
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-height: 122px;
+}
+.battlefield-row-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.7em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8d8da6;
+  margin-bottom: 6px;
+}
+.battlefield-row-count {
+  background: #2a2a48;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 0.95em;
+  color: #b6b6d2;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.battlefield-row-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+/* Token category picker inside the + Token form */
+.token-category {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  width: 100%;
+  margin-bottom: 6px;
+}
+.token-category-btn {
+  background: #1a1a30;
+  color: #b6b6d2;
+  border: 1px solid #2a2a48;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.85em;
+}
+.token-category-btn.active {
+  background: #5560d4;
+  border-color: #5560d4;
+  color: white;
+}
 .zone-label {
   display: flex;
   justify-content: space-between;
@@ -367,11 +431,61 @@ button.danger {
 .card-menu button.ghost { color: #8d8da6; }
 .card.tapped .card-menu { transform: rotate(-90deg); transform-origin: top left; }
 
-/* Mobile tweaks (Phase 3 will refine further) */
+/* Player tabs row (mobile only — hidden on desktop). */
+.player-tabs { display: none; }
+
+/* Mobile layout: player-tabs visible, only the active player's board
+   is shown, zones swipe horizontally with snap. */
 @media (max-width: 720px) {
-  .zone--narrow { width: 96px; }
-  .zone--wide   { flex-basis: 100%; min-width: 0; }
-  .zone--widest { flex-basis: 100%; min-width: 0; }
+  .player-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 8px 12px;
+    background: #15152a;
+    border-bottom: 1px solid #2a2a48;
+    -webkit-overflow-scrolling: touch;
+  }
+  .player-tab {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: #21213a;
+    color: #b6b6d2;
+    border: 1px solid #2a2a48;
+    font-size: 0.85em;
+    white-space: nowrap;
+  }
+  .player-tab.active {
+    background: #5560d4;
+    color: white;
+    border-color: #5560d4;
+  }
+
+  /* Only the active player's board is visible on mobile. */
+  .boards > .player-board { display: none; }
+  .boards > .player-board[data-active="true"] { display: block; }
+
+  /* Zones: horizontal swipe instead of vertical wrap. Each zone
+     snaps to viewport width. Battlefield is first → focus by default. */
+  .zones {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding-bottom: 4px;
+  }
+  .zone--narrow,
+  .zone--wide,
+  .zone--widest {
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+
+  .battlefield-row { min-height: 100px; }
   .card { width: 64px; height: 90px; }
   .topbar { font-size: 0.9em; }
 }
